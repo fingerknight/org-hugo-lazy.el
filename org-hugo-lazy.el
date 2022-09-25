@@ -61,6 +61,12 @@ Value is the ordered number of Github Issue")
 (defvar org-hugo-lazy--db nil
   "Database handle for Org Hugo")
 
+(defun org-hugo-lazy-message (str &rest args)
+  "Print message with prefix \"[Org Hugo Lazy]\"."
+  (apply #'message
+	 (append `(,(concat "[Org Hugo Lazy] " str))
+		 args)))
+
 (defun eh-org-clean-space-for-md (text backend info)
   "在export为 MarkDown时,删除中文之间不必要的空格"
   (when (or (org-export-derived-backend-p backend 'hugo))
@@ -88,7 +94,7 @@ Value is the ordered number of Github Issue")
   "A activating function"
   (interactive)
   (unless org-hugo-lazy--loaded
-    (message "[Org Hugo Lazy] Loading all the configurations...")
+    (org-hugo-lazy-message "Loading all the configurations...")
     (require 'ox)
     (require 'ox-hugo)
     (require 'emacsql)
@@ -127,7 +133,7 @@ Value is the ordered number of Github Issue")
 				      (file string :unique)
 				      (lastmod integer)
 				      (not-kill integer)])]))
-      (message "[Org Hugo Lazy] Database loaded: %s" org-hugo-lazy-db-path)))
+      (org-hugo-lazy-message "Database loaded: %s" org-hugo-lazy-db-path)))
 
   (defun org-hugo-lazy-db-get (key)
     "Get value from database"
@@ -201,9 +207,9 @@ Value is the ordered number of Github Issue")
   (unless (cdr (assoc-string id org-hugo-lazy--git-issue-list))
     (let ((cmd-formatter "cd %s; gh label create \"%s\"; gh issue create --title \"%s\" --body \"%s\" --label \"Gitalk,%s\"")
 	  (dir org-hugo-lazy-git-repo-dir))
-      (message "[Org Hugo Lazy] Adding new issue: %s, %s" title id)
-      (message "[Org Hugo Lazy] %s" (shell-command-to-string (format cmd-formatter
-								     dir id title uri id))))))
+      (org-hugo-lazy-message "Adding new issue: %s, %s" title id)
+      (org-hugo-lazy-message (shell-command-to-string (format cmd-formatter
+							      dir id title uri id))))))
 
 ;;; ----------
 
@@ -235,7 +241,7 @@ If functio is called interactively, then FORCE is t."
 	 (file-time-in-db (unless force (org-hugo-lazy-db-get file-short-name)))
 	 (title "")
 	 (outfile ""))
-    (message "Processing: %s" file-name)
+    (org-hugo-lazy-message "Processing: %s" file-name)
     
     (unless file-buffer-exists-p
 	(setq file-buffer (find-file file-name)))
@@ -245,7 +251,7 @@ If functio is called interactively, then FORCE is t."
       (if (and file-time-in-db
 	       (equal file-time file-time-in-db))
 	  ;; This file has not been modified.
-	  (message "Skipping unmodified file: %s" file-name)
+	  (org-hugo-lazy-message "Skipping unmodified file: %s" file-name)
 	;; New file or modified file
 	(setq outfile (org-hugo-export-wim-to-md t nil))
 
@@ -259,7 +265,7 @@ If functio is called interactively, then FORCE is t."
 	(kill-buffer file-buffer)))
 
     (org-hugo-lazy-db-set file-short-name  file-time)
-    (message "Done: %s" file-name)))
+    (org-hugo-lazy-message "Done: %s" file-name)))
 
 
 ;;;###autoload
@@ -302,7 +308,7 @@ You can specify files needed to be transformed by force."
   ;; Export org to md
   (org-hugo-lazy-generate)
   ;; Export md to HTML
-  (shell-command-to-string (format "cd %s; hugo" org-hugo-base-dir))
+  (org-hugo-lazy-message (shell-command-to-string (format "cd %s; hugo" org-hugo-base-dir)))
   ;; Commit post
   (org-hugo-lazy--git-commit)
   )
