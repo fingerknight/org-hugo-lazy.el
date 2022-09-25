@@ -1,0 +1,123 @@
+** Org Hugo Tool
+An Emacs tool to publish org files to a blog by using [[https://gohugo.io][Hugo]] and [[https://github.com/kaushalmodi/ox-hugo][ox-hugo]].
+
+** Installation
+Needed: ~Emacs >= 28.2~, ~Org Mode >= 9.5.5~
+
+1. Install ~Hugo~
+Please go to [[https://gohugo.io/getting-started/installing/]] to install Hugo according to your system.
+
+2. Install ~ox-hugo~
+~M-x packag-install RET ox-hugo~
+
+3. Install ~emacsql~
+SQLite is used as cache, make sure you have own it.
+
+~M-x packag-install RET eamcsql~
+
+4. Install ~f.el~ and ~s.el~
+They are fantastic Emacs API. ~M-x packag-install RET f~, ~M-x packag-install RET s~.
+   
+5. Download this tool ~org-hugo-lazy.el~. Then
+#+begin_src elisp
+  (add-to-list 'load-path "<where `org-hugo-lazy.el' is>")
+  (require 'org-hugo-lazy)
+#+end_src
+Since packages are lazy-loaded, don't worry about being slow down by ~org-hugo-lazy~
+
+6.(Unnecessary) Since my blog uses [[https://github.com/gitalk/gitalk/][Gitalk]] as comment system, so I add this process to ~org-hugo-lazy~
+Install [[https://github.com/cli/cli][GitHug CLI]] to add new issue automatically.
+#+begin_src bash
+  sudo pacman -S github-cli
+#+end_src
+
+** Usage
+*** Hugo configuration
+My GitHub Page blog is like (in a directory ~project~ affiliated with Hugo project):
+#+begin_src bash
+  project
+  ├── assets
+  ├── docs
+  └── posts
+#+end_src
+where ~posts~ saves the ~org~ source, assets collects static source using in ~org~, and ~docs~ is publish directory. I leave all the rest config of Hugo locally (because there are some secrects such as GitHub OA used by ~Gitalk~).
+
+You should set your publish path in your hugo config to ~publishDir: project/docs~, or you have to change ~org-hugo-lazy~ by your own.
+
+*** Org-hugo-lazy configuration
+#+begin_src elisp
+  (setq
+   ;; Hugo project directory
+   org-hugo-base-dir "~/blog/"
+   ;; Your Github Page url
+   org-hugo-blog-url "https://fingerknight.github.io/"
+   ;; Where you github repo
+   org-hugo-lazy-git-repo-dir (f-expand "project" org-hugo-base-dir)
+   ;; Where the Org Source saves
+   org-hugo-lazy-source-dir (f-expand "project/posts/" org-hugo-base-dir)
+   ;; Where to save the cache
+   org-hugo-lazy-db-path (f-expand "org-hugo-lazy.db" user-data-directory)
+   ;; Wether to handle Gitalk
+   ;;  org-hugo-lazy-auto-gitalk t
+   )
+#+end_src
+
+*** Org-hugo-lazy APIs
+**** org-hugo-lazy-load-all
+Load ~ox~, ~ox-hugo~ and cache. This may talk a lot of time when startuping Emacs, so it should be call by certain codes. You can call it manually, or ~org-hugo-lazy-generate~, ~org-hugo-lazy-publish~, ~org-hugo-lazy--generate-single~ both call it implicitly.
+
+**** org-hugo-lazy-generate
+To transform all the ~org~ files in ~org-hugo-lazy-source-dir~ recursively to ~md~. It will check the *last modified time* of files, then skip the unmodified file -- by comparing with data in cache. 
+
+It acts differently by calling interactively or not if you have set ~org-hugo-lazy-auto-gitalk~ to ~ t~.
+
+With ~org-hugo-lazy-auto-gitalk~ as ~t~, if ~org-hugo-lazy-generate~ is called interactively, then it only transform files, not handling ~Github Issue~. Otherwise, it will try to create new issue for each ~org~ file since ~Gitalk~ use issues as comment system of blog.
+
+**** org-hugo-lazy-publish
+It calls ~org-hugo-lazy-generate~, furthermore, it will try to enter ~org-hugo-lazy-git-repo-dir~ and ~git add/commit/push~. Actually, it will create a ~shell~ script in ~org-hugo-lazy-git-commit-shell-path~ with content ~org-hugo-lazy-git-script-template~, and execute it.
+
+That code is ugly, which means *it is hard to customize the script*.
+
+**** org-hugo-lazy--gernerate-single
+Transform a ~org~ file to ~md~, in which default is current buffer. It is used by ~org-hugo-lazy-generate~ in low-level.
+
+You can execute it in Lisp execution ~(org-hugo-lazy--generate-single nil nil t)~ to force current buffer to transform to a ~md~ even it is unmodified.
+
+**** org-hugo-lazy-insert-formatter
+A useful, interactively function to let you insert a template into current buffer quickly.
+
+** Contribution
+Here is the design of ~org-hugo-lazy~.
+
+*** Procedure
+Suppose that ~org-hugo-lazy-auto-gitalk~ is ~t~.
+
+Firstly it will get issue list of GitHub repo by ~gh issue list~, and filter out all the issue with label ~Gitalk~.
+
+Scan each file in ~org-hugo-lazy-source-dir~, calling function in ~ox-hugo~ -- ~org-hugo-export-wim-to-md~ to transform current ~org~ file to ~md~. Meanwhile, it will calculate the MD5 of the string, the relative path of output ~md~ file to ~<your hugo project dir>/content~. The MD5 is the unique ID, so that each post in blog can match the correct issue.
+
+The explanation of /relative path/. Assume your Hugo project directory is ~blog~, and your output ~md~ locates in ~blog/content~.
+#+begin_src
+blog/content/about.md => about.md
+blog/content/posts/just-a-post.md => posts/just-a-posts.md
+#+end_src
+
+Try to create a new label by ~gh label create [md5 of relative path]~, then try to create a new issue by ~gh issue create --title [post's title] --body [post's url in your blog] --label "Gitalk,[md5 of relative path]"~.
+
+For some network errors, they may work improperly.
+
+Call ~hugo~ to publish ~md~ file to ~html~ in directory ~project/docs~.
+
+Try to ~git add/commit/push~ files in repo ~project~ to GitHub.
+
+*** Cache
+Cache is a ~SQLite~ databaes with a table ~data~ consisting of
+| Name     | Type    | For                                |
+|----------+---------+------------------------------------|
+| ID       | Integer | Primary Key                        |
+| FILE     | String  | relative name of `org' file        |
+| LASTMOD  | Integer | Last modificationTimestamp of file |
+| NOT_KILL | Integer | Wether to delete this item         |
+Explanation of ~NOT_KILL~.
+
+They are both set to be 0 in database. Each ~org~ file will generate or update an item, setting ~NOT_KILL~ to 1, no matter if they are modified or not. At the last of generating, it remove all the item in database whose ~NOT_KILL~ is 0, which means they are old files that doesn't exixt in current project. Then set all left items' ~NOT_KILL~ to 0.
