@@ -35,6 +35,11 @@
   :type 'string
   )
 
+(defcustom org-hugo-lazy-relative-static-output-dir "img"
+  "Where to export static files relative with <project dir>/static/"
+  :group 'org-hugo-lazy
+  :type 'string)
+
 (defcustom org-hugo-lazy-db-path (f-expand "org-hugo-lazy.db" user-emacs-directory)
   "Where to save md5 of file cotent for Org Hugo"
   :group 'org-hugo-lazy
@@ -99,7 +104,7 @@ Value is the ordered number of Github Issue")
     (require 'ox-hugo)
     (require 'emacsql)
     
-    (setq org-hugo-default-static-subdirectory-for-externals "img"
+    (setq org-hugo-default-static-subdirectory-for-externals org-hugo-lazy-relative-static-output-dir
 	  org-hugo-auto-set-lastmod t
 	  org-hugo-export-with-toc nil)
     
