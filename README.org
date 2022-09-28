@@ -59,6 +59,7 @@ You should set your publish path in your hugo config to ~publishDir: project/doc
    org-hugo-lazy-db-path (f-expand "org-hugo-lazy.db" user-data-directory)
    ;; The relative path to <project dir>/static where static saves
    org-hugo-lazy-relative-static-output-dir "img"
+   org-hugo-lazy-git-repo-dir <you github repo>
    ;; Wether to handle Gitalk
    ;;  org-hugo-lazy-auto-gitalk t
    )

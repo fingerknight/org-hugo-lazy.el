@@ -200,11 +200,11 @@ Value is the ordered number of Github Issue")
 	 (tmp '()))
     (when issue-list
       (dolist (issue issue-list)
-        (let ((label-list (s-split-words (nth 3 issue))))
+        (let ((label-list (s-split "\t" (nth 3 issue))))
 	  (when (and (member "Gitalk" label-list)
 		     (length= label-list 2))
 	    
-	    (push `(,(car (remove "Gitalk" (s-split-words (nth 3 issue))))
+	    (push `(,(car (remove "Gitalk" (s-split "\t" (nth 3 issue))))
 		    .
 		    ,(car issue))
 		  tmp)))))
