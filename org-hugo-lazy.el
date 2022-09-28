@@ -45,6 +45,9 @@
   :group 'org-hugo-lazy
   :type 'string)
 
+(defcustom org-hugo-lazy-repo-url ""
+  "Uri to GitHub repository")
+
 (defcustom org-hugo-lazy-source-dir ""
   "Where to save the raw posts"
   :group 'org-hugo-lazy
@@ -263,7 +266,7 @@ If functio is called interactively, then FORCE is t."
 	;; Try to create new issue
 	(when (and new-issue-p org-hugo-lazy-auto-gitalk)
 	  (org-hugo-lazy--git-add-issue title
-					(downcase (concat org-hugo-blog-url (f-base file-name) "/"))
+					(downcase (concat org-hugo-lazy-repo-url (f-base file-name) "/"))
 					(md5 (f-relative outfile (f-expand "content/" org-hugo-base-dir))))))
       
       (unless file-buffer-exists-p
