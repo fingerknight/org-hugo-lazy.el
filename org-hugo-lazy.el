@@ -294,7 +294,7 @@ You can specify files needed to be transformed by force."
 	(new-issue-p (not (called-interactively-p 'any))))
     
     (when (and new-issue-p org-hugo-lazy-auto-gitalk)
-      (org-hugo--git-get-issue-list))
+      (org-hugo-lazy--git-get-issue-list))
 
     (dolist (file-name (f-files org-hugo-lazy-source-dir
 				(lambda (file) (equal (f-ext file) "org"))
