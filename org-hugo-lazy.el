@@ -195,16 +195,16 @@ Value is the ordered number of Github Issue")
   (let* ((dir org-hugo-lazy-git-repo-dir)
 	 (cmd-output (shell-command-to-string
 		      (format "cd %s; gh issue list" dir)))
-	 (issue-list (mapcar #'(lambda (each) (s-split-words each))
+	 (issue-list (mapcar #'(lambda (each) (s-split "\t" each))
 			     (cl-subseq (s-lines cmd-output) 0 -1)))
 	 (tmp '()))
     (when issue-list
       (dolist (issue issue-list)
-        (let ((label-list (s-split "\t" (nth 3 issue))))
+        (let ((label-list (s-split-words (nth 3 issue))))
 	  (when (and (member "Gitalk" label-list)
 		     (length= label-list 2))
 	    
-	    (push `(,(car (remove "Gitalk" (s-split "\t" (nth 3 issue))))
+	    (push `(,(car (remove "Gitalk" (s-split-words (nth 3 issue))))
 		    .
 		    ,(car issue))
 		  tmp)))))
