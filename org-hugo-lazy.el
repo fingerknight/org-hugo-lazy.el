@@ -212,7 +212,8 @@ Value is the ordered number of Github Issue")
     
 (defun org-hugo-lazy--git-add-issue (title uri id)
   "Inital a new issue used to comment"
-  (unless (cdr (assoc-string id org-hugo-lazy--git-issue-list))
+  (when (and org-hugo-lazy--git-issue-list
+	     (not (cdr (assoc-string id org-hugo-lazy--git-issue-list))))
     (let ((cmd-formatter "cd %s; gh label create \"%s\"; gh issue create --title \"%s\" --body \"%s\" --label \"Gitalk,%s\"")
 	  (dir org-hugo-lazy-git-repo-dir))
       (org-hugo-lazy-message "Adding new issue: %s, %s" title id)
