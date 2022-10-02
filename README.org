@@ -1,5 +1,5 @@
-** Org Hugo Tool
-An Emacs tool to publish org files to a blog by using [[https://gohugo.io][Hugo]] and [[https://github.com/kaushalmodi/ox-hugo][ox-hugo]].
+* Org Hugo Lazy
+Org hugo lazy (ohl) is an Emacs tool to publish org files to *GitHub Page* as blog by using [[https://gohugo.io][Hugo]] and [[https://github.com/kaushalmodi/ox-hugo][ox-hugo]].
 
 ** Installation
 Needed: ~Emacs >= 28.2~, ~Org Mode >= 9.5.5~
@@ -18,86 +18,87 @@ SQLite is used as cache, make sure you have own it.
 4.Install ~f.el~ and ~s.el~
 They are fantastic Emacs API. ~M-x packag-install RET f~, ~M-x packag-install RET s~.
    
-5.Download this tool ~org-hugo-lazy.el~. Then
+5.CLone or download this tool. Add it to your ~init.el~
 #+begin_src elisp
-  (add-to-list 'load-path "<where `org-hugo-lazy.el' is>")
-  (require 'org-hugo-lazy)
+  (add-to-list 'load-path "<where ohl is>")
+  (require 'ohl)
 #+end_src
-Since packages are lazy-loaded, don't worry about being slow down by ~org-hugo-lazy~
+Since packages are lazy-loaded, don't worry about being slow down by ~ohl~
 
-6.(Unnecessary) Since my blog uses [[https://github.com/gitalk/gitalk/][Gitalk]] as comment system, so I add this process to ~org-hugo-lazy~
+6.(Unnecessary) Since my blog uses [[https://github.com/gitalk/gitalk/][Gitalk]] as comment system, so I add this process to ~ohl~
 Install [[https://github.com/cli/cli][GitHug CLI]] to add new issue automatically.
 #+begin_src bash
   sudo pacman -S github-cli
 #+end_src
 
 ** Usage
-*** Hugo configuration
-My GitHub Page blog is like (in a directory ~project~ affiliated with Hugo project):
-#+begin_src bash
-  project
-  ├── assets
-  ├── docs
-  └── posts
-#+end_src
-where ~posts~ saves the ~org~ source, assets collects static source using in ~org~, and ~docs~ is publish directory. I leave all the rest config of Hugo locally (because there are some secrects such as GitHub OA used by ~Gitalk~).
-
-You should set your publish path in your hugo config to ~publishDir: project/docs~, or you have to change ~org-hugo-lazy~ by your own.
-
-*** Org-hugo-lazy configuration
+*** ohl configuration
 #+begin_src elisp
-  (setq
-   ;; Hugo project directory
-   org-hugo-base-dir "~/blog/"
-   ;; Your Github Page url
-   org-hugo-blog-url "https://fingerknight.github.io/"
-   ;; Where you github repo
-   org-hugo-lazy-git-repo-dir (f-expand "project" org-hugo-base-dir)
-   ;; Where the Org Source saves
-   org-hugo-lazy-source-dir (f-expand "project/posts/" org-hugo-base-dir)
-   ;; Where to save the cache
-   org-hugo-lazy-db-path (f-expand "org-hugo-lazy.db" user-data-directory)
-   ;; The relative path to <project dir>/static where static saves
-   org-hugo-lazy-relative-static-output-dir "img"
-   org-hugo-lazy-git-repo-dir <you github repo>
-   ;; Wether to handle Gitalk
-   ;;  org-hugo-lazy-auto-gitalk t
-   )
+  (require 'ohl)
+
+  ;; Where to save the cache data
+  ;; Default: ~/.emacs.d/org-hugo-lazy.db
+  ;; (setq ohl-db-path (f-expand "org-hugo-lazy.db" user-data-directory))
+
+  (setq ohl-project-plist
+	;; This is a project
+	'(("blog"
+	   :base-directory "~/org/blog/"
+	   :source-directory "~/org/posts/"
+	   :repository-directory "~/org/"
+	   :static-relative-directory "assets"
+	   :gitalk t
+	   :url "https://example.github.io/"
+	   :paried-shortcodes "mermaid admonition"
+	   :auto-lastmod t
+	   :with-toc nil
+	   )
+	;; This is another project
+	  ;; ("emacs"
+	  ;;  ...
+	  ;;  )
+	  ))
+
 #+end_src
 
-*** Org-hugo-lazy APIs
-**** * org-hugo-lazy-load-all
-Load ~ox~, ~ox-hugo~ and cache. This may talk a lot of time when startuping Emacs, so it should be call by certain codes. You can call it manually, or ~org-hugo-lazy-generate~, ~org-hugo-lazy-publish~, ~org-hugo-lazy--generate-single~ both call it implicitly.
+- ~:base-directory~: directory of Hugo project.
+- ~:source-directory~: where your ~org~ files locate
+- ~:repository-directory~: your GitHub repo in locality.
+- (optional) ~:static-relative-directory~: the relative path of static files to ~/~. Suppose it is set to be ~assets~ as above, and there is a image named ~some.png~, then it will be copied into ~<your hugo project>/static/assets/some.png~ when exporting. Default
+- (optional) ~:gitalk~: if it is ~t~, then ~ohl~ will try to add a new issue to your GitHub Page as a comment system of your blog. Default is ~nil~.
+- (optional) ~:url~: url of your blog. *But it is necessary if ~:gitalk~ is ~t~.* No default
+- ~:paried-shortcodes~: Allowed custom Hugo Shortcodes, each of them are seperated by space ~" "~. Default is "mermaid admonition".
+- ~:auto-lastmode~: If automatically update the ~last-modification~ date. Default is ~t~.
+- ~:with-toc~: If posts are exported with table of content. Default is ~nil~ (since my Hugo Theme will handle toc).
 
-**** * org-hugo-lazy-generate
-To transform all the ~org~ files in ~org-hugo-lazy-source-dir~ recursively to ~md~. It will check the *last modified time* of files, then skip the unmodified file -- by comparing with data in cache. 
+*** ohl APIs
+**** ohl-load-all
+Since loading ~ox~ package and SQLite cache may cost a lot of startup time, I set them to be lazy-loaded, i.e., they load when ~ohl-load~ is called. You don't have to call it manually, other APIs will do implicitly.
 
-It acts differently by calling interactively or not if you have set ~org-hugo-lazy-auto-gitalk~ to ~ t~.
+**** ohl-generate 
+To transform all the ~org~ files in ~ohl-source-dir~ to ~md~ recursively. It will check the *last modified date* of files, then skip the unmodified file -- by comparing with data in cache.
 
-With ~org-hugo-lazy-auto-gitalk~ as ~t~, if ~org-hugo-lazy-generate~ is called interactively, then it only transform files, not handling ~Github Issue~. Otherwise, it will try to create new issue for each ~org~ file since ~Gitalk~ use issues as comment system of blog.
+Firstly, it will try to load packages and cache by ~ohl-load-all~.
 
-**** * org-hugo-lazy-publish
-It calls ~org-hugo-lazy-generate~, furthermore, it will try to enter ~org-hugo-lazy-git-repo-dir~ and ~git add/commit/push~. Actually, it will create a ~shell~ script in ~org-hugo-lazy-git-commit-shell-path~ with content ~org-hugo-lazy-git-script-template~, and execute it.
+~ohl-generate~ accpet a parameter ~plist~ which is the project of ~ohl-project-plist~. And it trys to add new issues to GitHub Repo. Note that it will *not* do things about GitHub isseue even ~:gitalk~ is ~t~ when *interactively*. 
 
-That code is ugly, which means *it is hard to customize the script*.
+With ~ohl-auto-gitalk~ as ~t~, if ~ohl-generate~ is called interactively, then it only transform files, not handling ~Github Issue~. Otherwise, it will try to create new issue for each ~org~ file since ~Gitalk~ use issues as comment system of blog.
 
-**** * org-hugo-lazy--gernerate-single
-Transform a ~org~ file to ~md~, in which default is current buffer. It is used by ~org-hugo-lazy-generate~ in low-level.
+**** ohl-publish
+~ohl-publish~ do a little more than ~ohl-generate~: accepted a project, it calls ~ohl-generate~, publishes the site by CLI ~hugo~, and git commit the files to GitHub Repo. Actually, to push the things, it will create a ~shell~ script in ~ohl-git-commit-shell-path~ with content ~ohl-git-script-template~, and execute it.
 
-You can execute it in Lisp execution ~(org-hugo-lazy--generate-single nil nil t)~ to force current buffer to transform to a ~md~ even it is unmodified.
+**** ohl-publish-all
+It will try to publish all the projects in ~ohl-project-plist~.
 
-**** org-hugo-lazy-insert-formatter
-A useful, interactively function to let you insert a template into current buffer quickly.
-
-** Contribution
-Here is the design of ~org-hugo-lazy~.
+** How it works
+Here is the design of ~ohl~.
 
 *** Procedure
-Suppose that ~org-hugo-lazy-auto-gitalk~ is ~t~.
+Suppose that ~ohl-auto-gitalk~ is ~t~.
 
-Firstly it will get issue list of GitHub repo by ~gh issue list~, and filter out all the issue with label ~Gitalk~.
+Firstly it will get issue list of GitHub repo by ~gh issue list~, and extract out all the issue with label ~Gitalk~.
 
-Scan each file in ~org-hugo-lazy-source-dir~, calling function in ~ox-hugo~ -- ~org-hugo-export-wim-to-md~ to transform current ~org~ file to ~md~. Meanwhile, it will calculate the MD5 of the string, the relative path of output ~md~ file to ~<your hugo project dir>/content~. The MD5 is the unique ID, so that each post in blog can match the correct issue.
+Scan each file in ~ohl-source-dir~, calling function in ~ox-hugo~ -- ~org-hugo-export-wim-to-md~ to transform current ~org~ file to ~md~. Meanwhile, it will calculate the MD5 of the string, the /relative path/ of output ~md~ file to ~<your hugo project dir>/content~. The MD5 is the unique ID, so that each post in blog can match the correct GitHub Issue.
 
 The explanation of /relative path/. Assume your Hugo project directory is ~blog~, and your output ~md~ locates in ~blog/content~.
 #+begin_src
@@ -105,15 +106,15 @@ blog/content/about.md => about.md
 blog/content/posts/just-a-post.md => posts/just-a-posts.md
 #+end_src
 
-Try to create a new label by ~gh label create [md5 of relative path]~, then try to create a new issue by ~gh issue create --title [post's title] --body [post's url in your blog] --label "Gitalk,[md5 of relative path]"~.
+Try to create a new label by ~gh label create [md5 of relative path]~, then try to create a new issue by ~gh issue create --title [post's title] --body [post's url in your blog] --label "Gitalk,[md5 of relative path]"~. If network errors occur, they may work improperly.
 
-For some network errors, they may work improperly.
+Call ~hugo~ to publish ~md~ file to ~html~.
 
-Call ~hugo~ to publish ~md~ file to ~html~ in directory ~project/docs~.
-
-Try to ~git add/commit/push~ files in repo ~project~ to GitHub.
+Try to ~git add/commit/push~ files to GitHub.
 
 *** Cache
+~TODO~: all the projects' data saves in one database, with RELATIVE_FILENAME as /unique key/, which means ~project1/posts/index.org~ may affect ~project2/posts/index.org~.
+
 Cache is a ~SQLite~ databaes with a table ~data~ consisting of
 | Name     | Type    | For                                |
 |----------+---------+------------------------------------|
