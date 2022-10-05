@@ -195,7 +195,7 @@ be forbidden.
 	  
 	org-hugo-paired-shortcodes
           (if (plist-member plist :paired-shortcodes)
-	      (plist-get plist :paried-shortcodes)
+	      (plist-get plist :paired-shortcodes)
 	    ""))
     
   (let ((cur-bf (buffer-name)))
