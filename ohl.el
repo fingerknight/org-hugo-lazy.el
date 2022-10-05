@@ -42,7 +42,7 @@ BOOL, nil
 If automatically handle with Gitalk
 
 :paried-shortcodes
-STING \"mermaid\" \"admonition\"
+STING \"\"
 Allowed shortcodes, which is seperated by space
 
 :auto-lastmod
@@ -196,7 +196,7 @@ be forbidden.
 	org-hugo-paired-shortcodes
           (if (plist-member plist :paired-shortcodes)
 	      (plist-get plist :paried-shortcodes)
-	    "mermaid admonition"))
+	    ""))
     
   (let ((cur-bf (buffer-name)))
     (--map
