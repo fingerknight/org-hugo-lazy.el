@@ -110,7 +110,7 @@ BOOL
     
     (setq ohl--loaded t)))
 
-(defun ohl--gernerate-single (file-name plist)
+(defun ohl--gernerate-single (project file-name plist)
   "Export a single org file FILE-NAME to md.
 PLIST is communication property-list."
   (let* ((file-short-name (f-relative file-name
@@ -118,7 +118,7 @@ PLIST is communication property-list."
 	 (file-buffer (get-file-buffer file-name))
 	 (file-buffer-exists-p file-buffer)
 	 (file-time (org-time-convert-to-integer (f-modification-time file-name)))
-	 (file-time-in-db (ohl-db-get file-short-name))
+	 (file-time-in-db (ohl-db-get project file-short-name))
 	 (outfile ""))
     (message "[Org Hugo Lazy] Processing: %s" file-name)
     
@@ -149,12 +149,12 @@ PLIST is communication property-list."
       (unless file-buffer-exists-p
 	(kill-buffer file-buffer)))
 
-    (ohl-db-set file-short-name file-time)
+    (ohl-db-set project file-short-name file-time)
     (message "Done: %s" file-name)))
 
 
 ;;;###autoload
-(defun ohl-generate (&optional plist)
+(defun ohl-generate (&optional project plist)
   "Transform all the org files in project to markdown.
 PLIST is communication channel.
 
@@ -166,12 +166,13 @@ be forbidden.
 
   (when (interactive-p)
     (ohl-load)
-    (setq plist (cdr (assoc-string
-		      (completing-read
-		       "Project: "
-		       (mapcar #'car
-			       ohl-project-plist)
-		       nil t)
+    (setq project (completing-read
+		   "Project: "
+		   (mapcar #'car
+			   ohl-project-plist)
+		   nil t)
+	  plist (cdr (assoc-string
+		      project
 		      ohl-project-plist)))
     (plist-put plist :gitalk nil))
   
@@ -200,12 +201,12 @@ be forbidden.
     
   (let ((cur-bf (buffer-name)))
     (--map
-     (ohl--gernerate-single it plist)
+     (ohl--gernerate-single project it plist)
      (f-files (plist-get plist :source-directory)
 	      (lambda (file) (s-equals-p (f-ext file) "org"))
 	      t))
     
-    (ohl-db-clear-old)
+    (ohl-db-clear-old project)
     (switch-to-buffer cur-bf)))
 
 ;;;###autoload
@@ -225,7 +226,7 @@ be forbidden.
       (ohl-gitalk--get-issue-list (plist-get plist :repository-directory)))
 
     ;; Export org to md
-    (ohl-generate plist)
+    (ohl-generate project-name plist)
 
     ;; Export md to HTML
     (message (shell-command-to-string (format "cd %s; hugo"

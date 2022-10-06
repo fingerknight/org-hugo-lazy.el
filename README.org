@@ -113,7 +113,8 @@ Call ~hugo~ to publish ~md~ file to ~html~.
 Try to ~git add/commit/push~ files to GitHub.
 
 *** Cache
-~TODO~: all the projects' data saves in one database, with RELATIVE_FILENAME as /unique key/, which means ~project1/posts/index.org~ may affect ~project2/posts/index.org~.
+~TODO~:
+- [X] all the projects' data saves in one database, with RELATIVE_FILENAME as /unique key/, which means ~project1/posts/index.org~ may affect ~project2/posts/index.org~.
 
 Cache is a ~SQLite~ databaes with a table ~data~ consisting of
 | Name     | Type    | For                                |
