@@ -120,6 +120,7 @@ Cache is a ~SQLite~ databaes with a table ~data~ consisting of
 | Name     | Type    | For                                |
 |----------+---------+------------------------------------|
 | ID       | Integer | Primary Key                        |
+| PROJECT  | String  | project name                       |
 | FILE     | String  | relative name of `org' file        |
 | LASTMOD  | Integer | Last modificationTimestamp of file |
 | NOT_KILL | Integer | Wether to delete this item         |
