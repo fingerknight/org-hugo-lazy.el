@@ -110,7 +110,7 @@ BOOL
     
     (setq ohl--loaded t)))
 
-(defun ohl--gernerate-single (project file-name plist)
+(defun ohl--gernerate-single (project file-name plist db-table)
   "Export a single org file FILE-NAME to md.
 PLIST is communication property-list."
   (let* ((file-short-name (f-relative file-name
@@ -199,7 +199,8 @@ be forbidden.
 	      (plist-get plist :paired-shortcodes)
 	    ""))
     
-  (let ((cur-bf (buffer-name)))
+  (let ((cur-bf (buffer-name))
+	(db-table (ohl-db-get-all project)))
     (--map
      (ohl--gernerate-single project it plist)
      (f-files (plist-get plist :source-directory)

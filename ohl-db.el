@@ -33,6 +33,38 @@
     (when res (setq res (caar res)))
     res))
 
+(defun ohl-db-get-all (project)
+  "Get all items of PROJECT"
+  (--map (cons (car it) (cadr it))
+	 (emacsql ohl-db--conn
+		  [:select [file lastmod]
+		   :from data
+		   :where (= project $s1)]
+		  project)))
+
+(defun ohl-db-add-files (project table)
+  "TABLE: '((file . lastmod))"
+  (unless table
+    (emacsql ohl-db--conn
+	     [:insert-into data
+	      :values $v1]
+	     (--map (vector nil project
+			    (car it)
+			    (cdr it))
+		    table))))
+
+(defun ohl-db-delete-files (project table)
+  "TABLE: '((file . lastmod)
+for convenience"
+  (unless table
+    (emacsql ohl-db--conn
+	     [:delete-from data
+	      :where (and (in file $v1)
+			  (= project $s2))]
+	     (vconcat (-map #'car table))
+	     project)))
+
+
 (defun ohl-db-set (project file date)
   "Set last modification date for file in project to database"
   (if (ohl-db-get project file)
