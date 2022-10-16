@@ -28,8 +28,9 @@ Value is the ordered number of Github Issue")
 	     (car (remove "Gitalk" (s-split-words (nth 3 it))))
 	    issue-list))))
 
-  (unless ohl-gitalk--issue-list
-    (message "Failed to get issue list")))
+  (message (if ohl-gitalk--issue-list
+			   "Issue list gotten"
+			 "Failed to get issue list")))
     
 (defun ohl-gitalk--git-add-issue (dir title uri id)
   "Inital a new issue used to comment"

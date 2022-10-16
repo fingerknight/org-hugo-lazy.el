@@ -10,23 +10,22 @@ Please go to [[https://gohugo.io/getting-started/installing/]] to install Hugo a
 2.Install ~ox-hugo~
 ~M-x packag-install RET ox-hugo~
 
-3.Install ~emacsql~
-SQLite is used as cache, make sure you have own it.
-
-~M-x packag-install RET eamcsql~
-
-4.Install ~f.el~ and ~s.el~
+3.Install ~f.el~ and ~s.el~
 They are fantastic Emacs API. ~M-x packag-install RET f~, ~M-x packag-install RET s~.
    
-5.CLone or download this tool. Add it to your ~init.el~
+4.CLone or download this tool. Add it to your ~init.el~
 #+begin_src elisp
   (add-to-list 'load-path "<where ohl is>")
   (require 'ohl)
 #+end_src
 Since packages are lazy-loaded, don't worry about being slow down by ~ohl~
 
-6.(Unnecessary) Since my blog uses [[https://github.com/gitalk/gitalk/][Gitalk]] as comment system, so I add this process to ~ohl~
-Install [[https://github.com/cli/cli][GitHug CLI]] to add new issue automatically.
+5.(Unnecessary) Since my blog uses [[https://github.com/gitalk/gitalk/][Gitalk]] as comment system, so I add this process to ~ohl~
+Install [[https://github.com/cli/cli][GitHug CLI]] to add new issue automatically. Don't forget to authorize the device
+#+begin_src bash
+gh auth login
+#+end_src
+
 #+begin_src bash
   sudo pacman -S github-cli
 #+end_src
@@ -37,8 +36,8 @@ Install [[https://github.com/cli/cli][GitHug CLI]] to add new issue automaticall
   (require 'ohl)
 
   ;; Where to save the cache data
-  ;; Default: ~/.emacs.d/org-hugo-lazy.db
-  ;; (setq ohl-db-path (f-expand "org-hugo-lazy.db" user-data-directory))
+  ;; Default: ~/.emacs.d/ohl
+  ;; (setq ohl-db-dir (f-expand "ohl" user-data-directory))
 
   (setq ohl-project-plist
 	;; This is a project
@@ -72,29 +71,48 @@ Install [[https://github.com/cli/cli][GitHug CLI]] to add new issue automaticall
 - ~:with-toc~: If posts are exported with table of content. Default is ~nil~ (since my Hugo Theme will handle toc).
 
 *** ohl APIs
-**** ohl-load-all
-Since loading ~ox~ package and SQLite cache may cost a lot of startup time, I set them to be lazy-loaded, i.e., they load when ~ohl-load~ is called. You don't have to call it manually, other APIs will do implicitly.
+**** ohl-load
+Since loading ~ox~ package may cost a lot of startup time, I set them to be lazy-loaded, i.e., they load when ~ohl-load~ is called. You don't have to call it manually, other APIs will do implicitly.
 
+Besides, this will override:
+- ~begin_center~: from:
+  #+begin_src html
+  <style>
+	.org-center{
+	margin-left: auto;
+	margin-right: auto;
+	text-align: center;
+	}</style>
+  <div class="org-center">
+	content here.
+  </div>
+  #+end_src
+  to:
+  #+begin_src html
+  <div class="org-center">
+	content here.
+  </div>
+  #+end_src
+  i.e., I remove the ~<script>~
+- add a hook ~eh-org-clean-space-for-md~ after paragraph exported, which wipes the whitespace before and after the *blod format* wrapping Chinese words.
+  
 **** ohl-generate 
 To transform all the ~org~ files in ~ohl-source-dir~ to ~md~ recursively. It will check the *last modified date* of files, then skip the unmodified file -- by comparing with data in cache.
 
-Firstly, it will try to load packages and cache by ~ohl-load-all~.
+Firstly, it will try to load packages by ~ohl-load~.
 
 ~ohl-generate~ accpet a parameter ~plist~ which is the project of ~ohl-project-plist~. And it trys to add new issues to GitHub Repo. Note that it will *not* do things about GitHub isseue even ~:gitalk~ is ~t~ when *interactively*. 
 
 With ~ohl-auto-gitalk~ as ~t~, if ~ohl-generate~ is called interactively, then it only transform files, not handling ~Github Issue~. Otherwise, it will try to create new issue for each ~org~ file since ~Gitalk~ use issues as comment system of blog.
 
 **** ohl-publish
-~ohl-publish~ do a little more than ~ohl-generate~: accepted a project, it calls ~ohl-generate~, publishes the site by CLI ~hugo~, and git commit the files to GitHub Repo. Actually, to push the things, it will create a ~shell~ script in ~ohl-git-commit-shell-path~ with content ~ohl-git-script-template~, and execute it.
+~ohl-publish~ do a little more than ~ohl-generate~: accepted a project, it calls ~ohl-generate~, publishes the site by CLI ~hugo~, and git commit the files to GitHub Repo.
 
 **** ohl-publish-all
 It will try to publish all the projects in ~ohl-project-plist~.
 
 ** How it works
-Here is the design of ~ohl~.
-
-*** Procedure
-Suppose that ~ohl-auto-gitalk~ is ~t~.
+Here is the design of ~ohl~. Suppose that ~ohl-auto-gitalk~ is ~t~.
 
 Firstly it will get issue list of GitHub repo by ~gh issue list~, and extract out all the issue with label ~Gitalk~.
 
@@ -112,18 +130,3 @@ Call ~hugo~ to publish ~md~ file to ~html~.
 
 Try to ~git add/commit/push~ files to GitHub.
 
-*** Cache
-~TODO~:
-- [X] all the projects' data saves in one database, with RELATIVE_FILENAME as /unique key/, which means ~project1/posts/index.org~ may affect ~project2/posts/index.org~.
-
-Cache is a ~SQLite~ databaes with a table ~data~ consisting of
-| Name     | Type    | For                                |
-|----------+---------+------------------------------------|
-| ID       | Integer | Primary Key                        |
-| PROJECT  | String  | project name                       |
-| FILE     | String  | relative name of `org' file        |
-| LASTMOD  | Integer | Last modificationTimestamp of file |
-| NOT_KILL | Integer | Wether to delete this item         |
-Explanation of ~NOT_KILL~.
-
-They are both set to be 0 in database. Each ~org~ file will generate or update an item, setting ~NOT_KILL~ to 1, no matter if they are modified or not. At the last of generating, it remove all the item in database whose ~NOT_KILL~ is 0, which means they are old files that doesn't exixt in current project. Then set all left items' ~NOT_KILL~ to 0.

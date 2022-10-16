@@ -3,7 +3,7 @@
 ;; Author: Fingker Knight <mrdust1880@outlook.com>
 ;; URL: https://github.com/fingerknight/ohl.el
 ;; Version: 0.0.1
-;; Package-Requires: ((emacs "28") (use-package "2.4.1") (emacsql "3.0.0") (ox-hugo "0.12.1") (f "0.20.0") (s "1.13.1"))
+;; Package-Requires: ((emacs "28") (ox-hugo "0.12.1") (dash "2.19.1") (f "0.20.0") (s "1.13.1"))
 ;; Keywords: org-mode hugo
 
 (require 'f)
@@ -79,7 +79,6 @@ BOOL
              "\\1\\2" string))
       string)))
 
-;;;###autoload
 (defun ohl-load ()
   "A activating function"
   (interactive)
@@ -88,69 +87,67 @@ BOOL
     (require 'ox)
     (require 'ox-hugo)
 
-    ;; (setq org-hugo-default-static-subdirectory-for-externals "img"
-    ;; 	  org-hugo-auto-set-lastmod t
-    ;; 	  org-hugo-export-with-toc nil)
-
     (add-to-list 'org-hugo-special-block-type-properties '("mermaid" . (:raw t)))
-   
+    
     ;; 修改 center ，不加 <style> ，在 css 里面调样式
     (setq org-blackfriday-center-block
 	  (lambda (_center-block contents _info)
 	    "Center-align the text in CONTENTS using CSS."
 	    (let* ((class "org-center"))
-	      (format "<div class=\"%s\">\n  <div></div>\n\n%s\n</div>" ;See footnote 1
+	      (format "<div class=\"%s\">\n%s\n</div>" 
 		      class contents))))
 
     (add-to-list 'org-export-filter-paragraph-functions
-		 'eh-org-clean-space-for-md)
-
-    (unless ohl-db--conn
-      (ohl-db-load))
+				 'eh-org-clean-space-for-md)
     
     (setq ohl--loaded t)))
 
-(defun ohl--gernerate-single (project file-name plist db-table)
+(defun ohl--gernerate-single (project filename plist)
   "Export a single org file FILE-NAME to md.
 PLIST is communication property-list."
-  (let* ((file-short-name (f-relative file-name
-				      (plist-get plist :source-directory)))
-	 (file-buffer (get-file-buffer file-name))
-	 (file-buffer-exists-p file-buffer)
-	 (file-time (org-time-convert-to-integer (f-modification-time file-name)))
-	 (file-time-in-db (ohl-db-get project file-short-name))
-	 (outfile ""))
-    (message "[Org Hugo Lazy] Processing: %s" file-name)
-    
-    (unless file-buffer-exists-p
-	(setq file-buffer (find-file file-name)))
-    
-    (with-current-buffer file-buffer
-      
-      (if (and file-time-in-db
-	       (= file-time file-time-in-db))
-	  ;; This file has not been modified.
-	  (message "Skipping unmodified file: %s" file-name)
-	;; New file or modified file
-	(setq outfile (org-hugo-export-wim-to-md t nil))
+  (let* ((file-short-name (f-relative filename
+									  (plist-get plist :source-directory)))
+		 (file-time (org-time-convert-to-integer (f-modification-time filename)))
+		 (delete-list (plist-get plist :delete-list))
+		 (file-time-in-db (ohl-db-get file-short-name))
+		 (outfile ""))
 
-	
-	(when (plist-get plist :gitalk)
-	  ;; Try to create new issue
-	  (ohl-gitalk--git-add-issue (plist-get plist :repository-directory)
-				     (s-trim (nth 1 (s-match "#\\+[tT][iI][tT][lL][eE]:\\([^\n]+\\)\n"
-							     (buffer-string))))
-				     (downcase (concat (plist-get plist :url)
-						       (f-base file-name) "/"))
-				     (md5 (f-relative outfile
-						      (f-expand "content/"
-								(plist-get plist :base-directory)))))))
-      
-      (unless file-buffer-exists-p
-	(kill-buffer file-buffer)))
+	(message "[Org Hugo Lazy] Processing: %s" filename)
 
-    (ohl-db-set project file-short-name file-time)
-    (message "Done: %s" file-name)))
+	(if (and file-time-in-db
+			 (= file-time file-time-in-db))
+		;; This file has not been modified.
+		(message "Skipping unmodified file: %s" filename)
+
+	  ;; New file or modified file
+	  (with-temp-buffer
+		(find-file filename)
+		(setq outfile (org-hugo-export-wim-to-md t nil))
+
+		(when (plist-get plist :gitalk)
+		  ;; Try to create new issue
+		  (ohl-gitalk--git-add-issue (plist-get plist :repository-directory)
+									 (s-trim (nth 1 (s-match "#\\+[tT][iI][tT][lL][eE]:\\([^\n]+\\)\n"
+															 (buffer-string))))
+									 (downcase (concat (plist-get plist :url)
+													   (f-base filename) "/"))
+									 (md5 (f-relative outfile
+													  (f-expand "content/"
+																(plist-get plist :base-directory))))))
+		(unless (eql (buffer-name)
+					 (plist-get plist :current-buffer))
+		  (kill-buffer)))
+
+	  (let ((lst (plist-get plist :update-list)))
+		(push (cons (intern file-short-name) file-time) lst)
+		(plist-put plist :update-list lst))
+
+	  ;; (ohl-db-set project file-short-name file-time)
+	  (message "Done: %s" filename))
+
+	;; remove name from the table
+	;; since the rest will be deleted from database
+	(plist-put plist :delete-list (remove file-short-name delete-list))))
 
 
 ;;;###autoload
@@ -165,84 +162,98 @@ be forbidden.
   (interactive)
 
   (when (interactive-p)
-    (ohl-load)
-    (setq project (completing-read
-		   "Project: "
-		   (mapcar #'car
-			   ohl-project-plist)
-		   nil t)
-	  plist (cdr (assoc-string
-		      project
-		      ohl-project-plist)))
-    (plist-put plist :gitalk nil))
-  
+	(ohl-load)
+	(setq project (completing-read
+				   "Project: "
+				   (mapcar #'car
+						   ohl-project-plist)
+				   nil t)
+		  plist (cdr (assoc-string
+					  project
+					  ohl-project-plist)))
+	(plist-put plist :gitalk nil))
+
   (setq org-hugo-base-dir
-	(plist-get plist :base-directory)
-	
-        org-hugo-default-static-subdirectory-for-externals
-	(if (plist-member plist :static-relative-directory)
-	      (plist-get plist :static-relative-directory)
-	    "assets")
-	
-	org-hugo-auto-set-lastmod
-	  (if (plist-member plist :auto-lastmod)
-	      (plist-get plist :auto-lastmod)
-	    t)
-	  
-	org-hugo-export-with-toc
-	  (if (plist-member plist :with-toc)
-	      (plist-get plist :with-toc)
-	    nil)
-	  
-	org-hugo-paired-shortcodes
-          (if (plist-member plist :paired-shortcodes)
-	      (plist-get plist :paired-shortcodes)
-	    ""))
-    
-  (let ((cur-bf (buffer-name))
-	(db-table (ohl-db-get-all project)))
-    (--map
-     (ohl--gernerate-single project it plist)
-     (f-files (plist-get plist :source-directory)
-	      (lambda (file) (s-equals-p (f-ext file) "org"))
-	      t))
-    
-    (ohl-db-clear-old project)
-    (switch-to-buffer cur-bf)))
+		(plist-get plist :base-directory)
+
+		org-hugo-default-static-subdirectory-for-externals
+		(if (plist-member plist :static-relative-directory)
+			(plist-get plist :static-relative-directory)
+		  "assets")
+
+		org-hugo-auto-set-lastmod
+		(if (plist-member plist :auto-lastmod)
+			(plist-get plist :auto-lastmod)
+		  t)
+
+		org-hugo-export-with-toc
+		(if (plist-member plist :with-toc)
+			(plist-get plist :with-toc)
+		  nil)
+
+		org-hugo-paired-shortcodes
+		(if (plist-member plist :paired-shortcodes)
+			(plist-get plist :paired-shortcodes)
+		  ""))
+
+  (plist-put plist :current-buffer (buffer-name))
+
+  (plist-put plist :update-list nil)
+  (plist-put plist :delete-list (ohl-db-load project))
+  (--map
+   (ohl--gernerate-single project it plist)
+   (f-files (plist-get plist :source-directory)
+			(lambda (file) (s-equals-p (f-ext file) "org"))
+			t))
+
+  (setq dbg plist)
+  ;; clean old items
+  (ohl-db-delete-files (plist-get plist :delete-list))
+  ;; update items
+  (ohl-db-update-files (plist-get plist :update-list))
+  ;; save json
+  (ohl-db-save project))
 
 ;;;###autoload
-(defun ohl-publish (&optional project)
+(defun ohl-publish (&optional project wait)
   (interactive)
   (ohl-load)
   (let* ((project-name
-	 (if project project
-	   (completing-read "Project: "
-			    (mapcar #'car
-				    ohl-project-plist)
-			    nil t)))
-	 (plist (cdr (assoc-string project-name
-				   ohl-project-plist))))
-    
-    (when (plist-get plist :gitalk)
-      (ohl-gitalk--get-issue-list (plist-get plist :repository-directory)))
+		  (if project project
+			(completing-read "Project: "
+							 (mapcar #'car
+									 ohl-project-plist)
+							 nil t)))
+		 (plist (cdr (assoc-string project-name
+								   ohl-project-plist))))
 
-    ;; Export org to md
-    (ohl-generate project-name plist)
+	(when (plist-get plist :gitalk)
+	  (ohl-gitalk--get-issue-list (plist-get plist :repository-directory)))
 
-    ;; Export md to HTML
-    (message (shell-command-to-string (format "cd %s; hugo"
-					      (plist-get plist :base-directory))))
+	;; Export org to md
+	(ohl-generate project-name plist)
 
-    ;; Git commit
-    (ohl-git-commit plist)
-    ))
+	;; Export md to HTML
+	(message (shell-command-to-string (format "cd %s; hugo"
+											  (plist-get plist :base-directory))))
+	(message "[Org Hugo Lazy] HTML exported")
+
+	;; Git commit
+	(let ((script  (ohl-git-format-script (plist-get plist :repository-directory))))
+	  (if wait script
+		(async-shell-command script)))
+	))
 
 ;;;###autoload
 (defun ohl-publish-all ()
+  "Publish all projects"
   (interactive)
-  (mapcar #'(lambda (project)
-	      (ohl-publish (car project)))
-	  ohl-project-plist))
+  (async-shell-command
+   (--reduce-from
+	(concat acc (ohl-publish (car it) t))
+	""
+	ohl-project-plist))
+  (message "[Org Hugo Lazy] All published."))
 
 ;;;###autoload
 (defun ohl-new-blog (title tags-string)
@@ -253,7 +264,7 @@ be forbidden.
 	  "#+hugo_draft: true\n\n"))
 
 (defun ohl-new-tutorial (section title)
-  (interactive "MSection:\nM Title: \n")
+  (interactive "MSection: \nM Title: \n")
   (insert "#+title: " title "\n"
 	  (format-time-string "#+date: [%Y-%m-%d %a]\n")
 	  "#+hugo_section: " section "\n"
