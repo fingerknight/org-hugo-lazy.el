@@ -6,6 +6,14 @@
 ;; Package-Requires: ((emacs "28") (ox-hugo "0.12.1") (dash "2.19.1") (f "0.20.0") (s "1.13.1"))
 ;; Keywords: org-mode hugo
 
+;; TODO
+;; - [-] output filename to md5 by using `slug' or `filename'
+;; - [ ] next/prev page in special pages
+;; - [X] after exporting, don't not close buffers open before
+;; - [-] way to sort in certain category.
+;; - [X] do not use org-project-plist as communication channel, its copy instead.
+
+
 (require 'f)
 (require 's)
 (require 'ohl-gitalk)
@@ -45,6 +53,18 @@ If automatically handle with Gitalk
 STING \"\"
 Allowed shortcodes, which is seperated by space
 
+:md5 - discarded
+BOOL nil
+use md5 replacing output md file's name.
+
+:md5-include - discarded
+LIST[REGEX-STRING] nil
+when :md5 is nil, specify what files rename with md5
+
+:md5-exclude - discarded
+LIST[REGEX-STRING] nil
+when :md5 is t, specify what files do not rename with md5
+
 :auto-lastmod
 BOOL t
 
@@ -79,6 +99,18 @@ BOOL
              "\\1\\2" string))
       string)))
 
+(defun ohl-transform-tab-to-space-in-trim (text backend info)
+  "将落在行首或行尾的 \t 转换为 4 个空格"
+  (when (or (org-export-derived-backend-p backend 'hugo))
+    (let ((regexp "^\\(\t+\\)\\|\\(\t\\)$")
+          (string text))
+      (setq string
+			(replace-regexp-in-string
+			 regexp
+			 #'(lambda (match) (s-repeat (s-count-matches "\t" match) "    "))
+			 string))
+      string)))
+
 (defun ohl-load ()
   "A activating function"
   (interactive)
@@ -91,14 +123,16 @@ BOOL
     
     ;; 修改 center ，不加 <style> ，在 css 里面调样式
     (setq org-blackfriday-center-block
-	  (lambda (_center-block contents _info)
-	    "Center-align the text in CONTENTS using CSS."
-	    (let* ((class "org-center"))
-	      (format "<div class=\"%s\">\n%s\n</div>" 
-		      class contents))))
+		  (lambda (_center-block contents _info)
+			"Center-align the text in CONTENTS using CSS."
+			(let* ((class "org-center"))
+			  (format "<div class=\"%s\">\n%s\n</div>" 
+					  class contents))))
 
     (add-to-list 'org-export-filter-paragraph-functions
 				 'eh-org-clean-space-for-md)
+	(add-to-list 'org-export-filter-src-block-functions
+				 'ohl-transform-tab-to-space-in-trim)
     
     (setq ohl--loaded t)))
 
@@ -134,15 +168,31 @@ PLIST is communication property-list."
 									 (md5 (f-relative outfile
 													  (f-expand "content/"
 																(plist-get plist :base-directory))))))
-		(unless (eql (buffer-name)
-					 (plist-get plist :current-buffer))
+		(unless (or (eql (buffer-name)
+						 (plist-get plist :current-buffer))
+					(member (buffer-file-name)
+							(plist-get plist :buffer-list)))
 		  (kill-buffer)))
 
 	  (let ((lst (plist-get plist :update-list)))
 		(push (cons (intern file-short-name) file-time) lst)
 		(plist-put plist :update-list lst))
 
-	  ;; (ohl-db-set project file-short-name file-time)
+	  
+	  ;; (when (or (and (plist-get plist :md5)
+	  ;; 				 (--every-p (not (s-matches-p it
+	  ;; 											  (f-filename filename)))
+	  ;; 							(plist-get plist :md5-exclude)))
+	  ;; 			(and (not (plist-get plist :md5))
+	  ;; 				 (--any-p (s-matches-p it
+	  ;; 									   (f-filename filename))
+	  ;; 						  (plist-get plist :md5-include))))
+	  ;; 	(rename-file outfile
+	  ;; 				 (f-expand (concat (md5 file-short-name)
+	  ;; 								   ".md")
+	  ;; 						   (f-dirname outfile))
+	  ;; 				 t))
+	  
 	  (message "Done: %s" filename))
 
 	;; remove name from the table
@@ -168,9 +218,9 @@ be forbidden.
 				   (mapcar #'car
 						   ohl-project-plist)
 				   nil t)
-		  plist (cdr (assoc-string
-					  project
-					  ohl-project-plist)))
+		  plist (copy-alist (cdr (assoc-string
+								  project
+								  ohl-project-plist))))
 	(plist-put plist :gitalk nil))
 
   (setq org-hugo-base-dir
@@ -197,6 +247,7 @@ be forbidden.
 		  ""))
 
   (plist-put plist :current-buffer (buffer-name))
+  (plist-put plist :buffer-list (remove nil (-map #'buffer-file-name (buffer-list))))
 
   (plist-put plist :update-list nil)
   (plist-put plist :delete-list (ohl-db-load project))
@@ -224,8 +275,8 @@ be forbidden.
 							 (mapcar #'car
 									 ohl-project-plist)
 							 nil t)))
-		 (plist (cdr (assoc-string project-name
-								   ohl-project-plist))))
+		 (plist (copy-alist (cdr (assoc-string project-name
+											   ohl-project-plist)))))
 
 	(when (plist-get plist :gitalk)
 	  (ohl-gitalk--get-issue-list (plist-get plist :repository-directory)))
@@ -254,21 +305,6 @@ be forbidden.
 	""
 	ohl-project-plist))
   (message "[Org Hugo Lazy] All published."))
-
-;;;###autoload
-(defun ohl-new-blog (title tags-string)
-  (interactive "MPost Title: \nMTags(seperated by space): \nMCategory(could be empty): \n")
-  (insert (format "#+title: %s\n" title)
-	  (format-time-string "#+date: [%Y-%m-%d %a]\n")
-	  (format "#+hugo_tags: %s\n" tags-string)
-	  "#+hugo_draft: true\n\n"))
-
-(defun ohl-new-tutorial (section title)
-  (interactive "MSection: \nM Title: \n")
-  (insert "#+title: " title "\n"
-	  (format-time-string "#+date: [%Y-%m-%d %a]\n")
-	  "#+hugo_section: " section "\n"
-	  "#+hugo_weight: "))
 
 (provide 'ohl)
 ;;; ohl.el ends

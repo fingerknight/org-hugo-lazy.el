@@ -38,7 +38,7 @@ Value is the ordered number of Github Issue")
 	     (not (member id ohl-gitalk--issue-list)))
     (let ((cmd-formatter "cd %s; gh label create \"%s\"; gh issue create --title \"%s\" --body \"%s\" --label \"Gitalk,%s\""))
       (message "[Org Hugo lazy] Adding new issue: %s, %s" title id)
-      (essage (shell-command-to-string (format cmd-formatter
+      (message (shell-command-to-string (format cmd-formatter
 					       dir id title uri id))))))
 
 (provide 'ohl-gitalk)
