@@ -1,3 +1,6 @@
+* 2022-12-23
+Archive for no using ox-hugo anymore. Now I use an fork of [[https://github.com/bastibe/org-static-blog][org-static-blog]], written with pure Elisp.
+
 * Org Hugo Lazy
 Org hugo lazy (ohl) is an Emacs tool to publish org files to *GitHub Page* as blog by using [[https://gohugo.io][Hugo]] and [[https://github.com/kaushalmodi/ox-hugo][ox-hugo]].
 
